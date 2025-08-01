@@ -88,8 +88,8 @@ class GEARS_Model(torch.nn.Module):
            
         # gene/globel perturbation embedding dictionary lookup            
         self.gene_emb = nn.Embedding(self.num_genes, hidden_size, max_norm=True)
-        self.pert_emb1 = nn.Embedding(self.num_perts, hidden_size, max_norm=True)
-        self.pert_emb2 = nn.Embedding(self.num_perts, hidden_size, max_norm=True)
+        self.pert_emb_go = nn.Embedding(self.num_perts, hidden_size, max_norm=True)
+        self.pert_emb_BioGRID = nn.Embedding(self.num_perts, hidden_size, max_norm=True)
         self.pert_autoencoder = AE(input_dim=hidden_size*2, hidden_dim=hidden_size)
         
         # transformation layer
@@ -109,12 +109,12 @@ class GEARS_Model(torch.nn.Module):
             self.layers_emb_pos.append(SGConv(hidden_size, hidden_size, 1))
         
         ### First perturbation GNN weights
-        self.G_sim1 = args['G_go'].to(args['device'])
-        self.G_sim_weight1 = args['G_go_weight'].to(args['device'])
+        self.G_sim_go = args['G_go'].to(args['device'])
+        self.G_sim_weight_go = args['G_go_weight'].to(args['device'])
 
         # Second perturbation GNN weights
-        self.G_sim2 = args['G_BioGRID'].to(args['device'])
-        self.G_sim_weight2 = args['G_BioGRID_weight'].to(args['device'])
+        self.G_sim_BioGRID = args['G_BioGRID'].to(args['device'])
+        self.G_sim_weight_BioGRID = args['G_BioGRID_weight'].to(args['device'])
 
         # Separate GNN stacks for each embedding
         self.sim_layers1 = torch.nn.ModuleList()
@@ -188,22 +188,22 @@ class GEARS_Model(torch.nn.Module):
                         pert_index.append([idx, j])
             pert_index = torch.tensor(pert_index).T     
 
-            pert_emb1 = self.pert_emb1(torch.arange(self.num_perts, device=self.args['device']))
-            pert_emb2 = self.pert_emb2(torch.arange(self.num_perts, device=self.args['device']))
+            pert_emb_go = self.pert_emb_go(torch.arange(self.num_perts, device=self.args['device']))
+            pert_emb_BioGRID = self.pert_emb_BioGRID(torch.arange(self.num_perts, device=self.args['device']))
 
             # Process each pert embedding through its own GNN
             for idx, layer in enumerate(self.sim_layers1):
-                pert_emb1 = layer(pert_emb1, self.G_sim1, self.G_sim_weight1)
+                pert_emb_go = layer(pert_emb_go, self.G_sim_go, self.G_sim_weight_go)
                 if idx < self.num_layers - 1:
-                    pert_emb1 = pert_emb1.relu()
+                    pert_emb_go = pert_emb_go.relu()
 
             for idx, layer in enumerate(self.sim_layers2):
-                pert_emb2 = layer(pert_emb2, self.G_sim2, self.G_sim_weight2)
+                pert_emb_BioGRID = layer(pert_emb_BioGRID, self.G_sim_BioGRID, self.G_sim_weight_BioGRID)
                 if idx < self.num_layers - 1:
-                    pert_emb2 = pert_emb2.relu()
+                    pert_emb_BioGRID = pert_emb_BioGRID.relu()
 
             # Combine the two GNN outputs, then project to hidden_size using an autoencoder
-            pert_global_emb_stacked = torch.cat([pert_emb1, pert_emb2], dim=-1)
+            pert_global_emb_stacked = torch.cat([pert_emb_go, pert_emb_BioGRID], dim=-1)
             pert_global_emb, recon = self.pert_autoencoder(pert_global_emb_stacked)
 
 
