@@ -7,7 +7,7 @@ import torch.optim as optim
 import torch.nn as nn
 from torch.optim.lr_scheduler import StepLR
 
-from .model import GEARS_Model
+from .model_second_emb import GEARS_Model
 from .inference import evaluate, compute_metrics, deeper_analysis, \
                   non_dropout_analysis
 from .utils import loss_fct, uncertainty_loss_fct, parse_any_pert, \
@@ -131,6 +131,8 @@ class GEARS:
                          direction_lambda = 1e-1,
                          G_go = None,
                          G_go_weight = None,
+                         G_BioGRID = None,
+                         G_BioGRID_weight = None,
                          G_coexpress = None,
                          G_coexpress_weight = None,
                          no_perturb = False,
@@ -169,6 +171,10 @@ class GEARS:
             co-expression graph, default None
         G_coexpress_weight: scipy.sparse.csr_matrix
             co-expression graph edge weights, default None
+        G_BioGRID: scipy.sparse.csr_matrix
+            BioGRID graph, default None
+        G_BioGRID_weight: scipy.sparse.csr_matrix
+            BioGRID graph edge weights, default None
         no_perturb: bool
             predict no perturbation condition, default False
 
@@ -189,6 +195,8 @@ class GEARS:
                        'direction_lambda' : direction_lambda,
                        'G_go': G_go,
                        'G_go_weight': G_go_weight,
+                       'G_BioGRID': G_BioGRID,
+                       'G_BioGRID_weight': G_BioGRID_weight,
                        'G_coexpress': G_coexpress,
                        'G_coexpress_weight': G_coexpress_weight,
                        'device': self.device,

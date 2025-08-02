@@ -32,31 +32,31 @@ class MLP(torch.nn.Module):
     def forward(self, x):
         return self.network(x)
     
-class AE(nn.Module):
-    def __init__(self, input_dim, hidden_dim):
-        """
-        Autoencoder model
-        :param input_dim: dimension of the input data
-        :param hidden_dim: dimension of the hidden representation
-        """
-        super().__init__()
-        # Encoder: compress to hidden_size
-        self.encoder = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim * 2),
-            nn.ReLU(),
-            nn.Linear(hidden_dim * 2, hidden_dim)
-        )
-        # Decoder: reconstruct back to input_dim
-        self.decoder = nn.Sequential(
-            nn.Linear(hidden_dim, hidden_dim * 2),
-            nn.ReLU(),
-            nn.Linear(hidden_dim * 2, input_dim)
-        )
+# class AE(nn.Module):
+#     def __init__(self, input_dim, hidden_dim):
+#         """
+#         Autoencoder model
+#         :param input_dim: dimension of the input data
+#         :param hidden_dim: dimension of the hidden representation
+#         """
+#         super().__init__()
+#         # Encoder: compress to hidden_size
+#         self.encoder = nn.Sequential(
+#             nn.Linear(input_dim, hidden_dim * 2),
+#             nn.ReLU(),
+#             nn.Linear(hidden_dim * 2, hidden_dim)
+#         )
+#         # Decoder: reconstruct back to input_dim
+#         self.decoder = nn.Sequential(
+#             nn.Linear(hidden_dim, hidden_dim * 2),
+#             nn.ReLU(),
+#             nn.Linear(hidden_dim * 2, input_dim)
+#         )
 
-    def forward(self, x):
-        z = self.encoder(x)
-        recon = self.decoder(z)
-        return z, recon
+#     def forward(self, x):
+#         z = self.encoder(x)
+#         recon = self.decoder(z)
+#         return z, recon
 
 
 
@@ -90,7 +90,8 @@ class GEARS_Model(torch.nn.Module):
         self.gene_emb = nn.Embedding(self.num_genes, hidden_size, max_norm=True)
         self.pert_emb_go = nn.Embedding(self.num_perts, hidden_size, max_norm=True)
         self.pert_emb_BioGRID = nn.Embedding(self.num_perts, hidden_size, max_norm=True)
-        self.pert_autoencoder = AE(input_dim=hidden_size*2, hidden_dim=hidden_size)
+        self.pert_emb_comb_trans = MLP([hidden_size, hidden_size, hidden_size], last_layer_act='ReLU')
+        # self.pert_autoencoder = AE(input_dim=hidden_size*2, hidden_dim=hidden_size)
         
         # transformation layer
         self.emb_trans = nn.ReLU()
@@ -201,11 +202,15 @@ class GEARS_Model(torch.nn.Module):
                 pert_emb_BioGRID = layer(pert_emb_BioGRID, self.G_sim_BioGRID, self.G_sim_weight_BioGRID)
                 if idx < self.num_layers - 1:
                     pert_emb_BioGRID = pert_emb_BioGRID.relu()
+            
+        
+            # Add the two GNN outputs, then apply nonlinearity using an MLP
+            pert_global_emb = pert_emb_go + pert_emb_BioGRID
+            pert_global_emb = self.pert_emb_comb_trans(pert_global_emb)
 
-            # Combine the two GNN outputs, then project to hidden_size using an autoencoder
-            pert_global_emb_stacked = torch.cat([pert_emb_go, pert_emb_BioGRID], dim=-1)
-            pert_global_emb, recon = self.pert_autoencoder(pert_global_emb_stacked)
-
+            # # Concatenate the two GNN outputs, then project to hidden_size using an autoencoder
+            # pert_global_emb_stacked = torch.cat([pert_emb_go, pert_emb_BioGRID], dim=-1)
+            # pert_global_emb, recon = self.pert_autoencoder(pert_global_emb_stacked)
 
             ## add global perturbation embedding to each gene in each cell in the batch
             base_emb = base_emb.reshape(num_graphs, self.num_genes, -1)
